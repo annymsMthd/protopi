@@ -1,0 +1,20 @@
+version: '2'
+
+services:
+  consul1:
+    image: consul
+    hostname: consul1
+    logging:
+      driver: none
+
+  node1:
+    build:
+      context: node1/
+      dockerfile: Dockerfile
+    hostname: node1
+
+  node2:
+    build:
+      context: node2/
+      dockerfile: Dockerfile
+    hostname: node2

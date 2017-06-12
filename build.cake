@@ -16,6 +16,8 @@ var configuration = Argument("configuration", "Release");
 var clusterHelloNode1Dir = Directory("./src/cluster-hello-world/node1/");
 var clusterHelloNode2Dir = Directory("./src/cluster-hello-world/node2/");
 var piHelloDir = Directory("./src/pi-hello-world/");
+var protoPiDir = Directory("./src/protopi/");
+
 var artifacts = Directory("./artifacts/");
 
 var deploymentStagingArea = Directory("/tmp/pi-deploy/");
@@ -131,6 +133,69 @@ Task("Deploy : [pi-hello-world]")
 });
 
 //////////////////////////////////////////////////////////////////////
+// Protopi
+//////////////////////////////////////////////////////////////////////
+
+Task("Clean : [protopi]")
+    .Does(() =>
+{
+    CleanDirectory(protoPiDir + Directory("./bin/") + Directory(configuration));
+    CleanDirectory(artifacts);
+});
+
+Task("Restore : [protopi]")
+    .IsDependentOn("Clean : [protopi]")
+    .Does(() =>
+{
+    DotNetCoreRestore(protoPiDir);
+});
+
+Task("Build : [protopi]")
+    .IsDependentOn("Restore : [protopi]")
+    .Does(() =>
+{
+    DotNetCoreBuild(protoPiDir);
+});
+
+Task("Publish : [protopi]")
+    .IsDependentOn("Build : [protopi]")
+    .Does(() =>
+{
+    var settings = new DotNetCorePublishSettings
+    {
+         Configuration = "Release",
+         Runtime = "linux-arm",
+         OutputDirectory = artifacts
+    };
+
+    DotNetCorePublish(protoPiDir, settings);
+});
+
+Task("Deploy : [protopi]")
+    .IsDependentOn("Publish : [protopi]")
+    .Does(() =>
+{
+    var repo = Argument("resin_repo", "");
+
+    EnsureDirectoryExists(deploymentStagingArea);
+    CleanDirectory(deploymentStagingArea);
+
+    executeCommand("/usr/bin/git", "clone " + repo, deploymentStagingArea);
+
+    var workingDirectory = deploymentStagingArea + Directory("./protopi/");
+
+    CopyFiles("./artifacts/*", workingDirectory);
+
+    CopyFile("./src/protopi/Dockerfile", workingDirectory + File("./Dockerfile"));
+
+    executeCommand("/usr/bin/git", "add .", workingDirectory);
+
+    executeCommand("/usr/bin/git", "commit -m \"cake deploy\"", workingDirectory);
+
+    executeCommand("/usr/bin/git", "push", workingDirectory);
+});
+
+//////////////////////////////////////////////////////////////////////
 // TASK TARGETS
 //////////////////////////////////////////////////////////////////////
 
@@ -140,6 +205,9 @@ Task("Default")
 
 Task("Deploy")
     .IsDependentOn("Deploy : [pi-hello-world]");
+
+Task("Deploy-protopi")
+    .IsDependentOn("Deploy : [protopi]");
 
 //////////////////////////////////////////////////////////////////////
 // EXECUTION
